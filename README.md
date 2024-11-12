@@ -12,6 +12,11 @@ want to convert `dmypy` to a language server. See [this issue](https://github.co
 Assuming you have a recent version of the rust toolchain installed, you should be able to `cargo
 install dmypyls`. For now, you'll need to ensure that `mypy` is in your path while running `dmypyls`.
 
+### Running from Source
+
+Consider using `dmypyls-debug-runner` to run from source, which is helpful for
+development purposes.
+
 ## Neovim Config
 
 ```lua
