@@ -95,7 +95,7 @@ fn convert_capture_to_diagnostic(
             },
         },
         message: description.to_string(),
-        source: Some("mypyls".to_string()),
+        source: Some("dmypy".to_string()),
         code: None,
         code_description: None,
         severity: DiagnosticSeverity::try_from(severity).ok(),
@@ -177,6 +177,16 @@ impl Backend {
     }
 }
 
+fn dmypy_is_running() -> bool {
+    Command::new("dmypy")
+        .arg("status")
+        .output()
+        .map_or(false, |output| {
+            let text = std::str::from_utf8(&output.stdout).unwrap();
+            text.starts_with("Daemon is up and running")
+        })
+}
+
 #[tower_lsp::async_trait]
 impl tower_lsp::LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> TowerResult<InitializeResult> {
@@ -186,36 +196,42 @@ impl tower_lsp::LanguageServer for Backend {
             serde_json::to_string(&params.capabilities.text_document).unwrap()
         );
         let root = "."; // Set root from params root_path or root_uri if available
-        let _ = Command::new("dmypy").arg("stop").status();
-        let ret = Command::new("dmypy")
-            .arg("run")
-            .arg("--")
-            // .arg("--cache-fine-grained")
-            .arg("--show-absolute-path")
-            .arg("--show-column-numbers")
-            .arg("--show-error-end")
-            .arg("--hide-error-codes")
-            .arg("--hide-error-context")
-            .arg("--no-color-output")
-            .arg("--no-error-summary")
-            .arg("--no-pretty")
-            .arg(root)
-            .status();
-        log::info!("[initialize] dympy run status: {:?}", ret);
-        if ret.is_ok() {
-            let sub_command = "dmypy check $(git ls-files *.py)";
-            // Call dmypy check on all files in the workspace
-            let mut cmd = Command::new("sh");
-            cmd.arg("-c").arg(sub_command);
-            log::info!("[initialize] Running command: {:?}", cmd);
-            let output: std::process::Output = cmd
-                .output()
-                .context("[initialize] failed to run git ls-files")?;
-            log::info!(
-                "[initialize] dmypy check output: {:?}",
-                std::str::from_utf8(&output.stdout).unwrap()
-            );
-            log::info!("[initialize] dmypy check ret: {:?}", output.status);
+        if !dmypy_is_running() {
+            log::info!("[initialize] dmypy is not yet running, starting it...");
+            let ret = Command::new("dmypy")
+                .arg("run")
+                .arg("--")
+                // .arg("--cache-fine-grained")
+                .arg("--show-absolute-path")
+                .arg("--show-column-numbers")
+                .arg("--show-error-end")
+                .arg("--hide-error-codes")
+                .arg("--hide-error-context")
+                .arg("--no-color-output")
+                .arg("--no-error-summary")
+                .arg("--no-pretty")
+                .arg(root)
+                .status();
+            log::info!("[initialize] dympy run status: {:?}", ret);
+            /*
+            if ret.is_ok() {
+                let sub_command = "dmypy check $(git ls-files *.py)";
+                // Call dmypy check on all files in the workspace
+                let mut cmd = Command::new("sh");
+                cmd.arg("-c").arg(sub_command);
+                log::info!("[initialize] Running command: {:?}", cmd);
+                let output: std::process::Output = cmd
+                    .output()
+                    .context("[initialize] failed to run git ls-files")?;
+                log::info!(
+                    "[initialize] dmypy check output: {:?}",
+                    std::str::from_utf8(&output.stdout).unwrap()
+                );
+                log::info!("[initialize] dmypy check ret: {:?}", output.status);
+            }
+            */
+        } else {
+            log::info!("[initialize] dmypy is already running");
         }
 
         Ok(InitializeResult {
