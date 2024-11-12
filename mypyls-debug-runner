@@ -4,11 +4,11 @@ die() {
   exit 1
 }
 
-logfile="$HOME"/.local/state/mypyls/mypyls.log
+logfile="$HOME"/.local/state/dmypyls/dmypyls.log
 mkdir -p "$(dirname "$logfile")" || die "failed to mkdir"
 
-# For local development, assuming you've cloned this into "$HOME"/src/mypyls, do something like:
-# ln -s "$HOME"/src/mypyls/mypyls-debug-runner "$HOME"/.local/bin/mypyls
+# For local development, assuming you've cloned this into "$HOME"/src/dmypyls, do something like:
+# ln -s "$HOME"/src/dmypyls/dmypyls-debug-runner "$HOME"/.local/bin/dmypyls
 # And, make sure "$HOME"/.local/bin is in your PATH, etc...
 echo "$0: invoked!" >>"$logfile"
 
@@ -17,4 +17,4 @@ on_exit() {
   echo "$0: exited!" >>"$logfile"
 }
 trap on_exit EXIT
-cargo run --quiet --manifest-path="$HOME"/src/mypyls/Cargo.toml -- "$@" 2>>"$logfile"
+cargo run --quiet --manifest-path="$HOME"/src/dmypyls/Cargo.toml -- "$@" 2>>"$logfile"

@@ -26,8 +26,12 @@ macro_rules! maybe {
     };
 }
 
+fn dmypy_command() -> Command {
+    Command::new("dmypy")
+}
+
 fn setup_logging(base_dirs: &xdg::BaseDirectories, level: log::LevelFilter) -> Result<()> {
-    let log_file_path = base_dirs.place_state_file("mypyls.log")?;
+    let log_file_path = base_dirs.place_state_file("dmypyls.log")?;
     simple_logging::log_to_file(log_file_path, level)?;
     Ok(())
 }
@@ -150,7 +154,7 @@ impl Backend {
             return Ok(());
         }
         log::info!("[{context}] checking file {file_path}:{version}");
-        let mut cmd = Command::new("dmypy");
+        let mut cmd = dmypy_command();
         cmd.arg("check").arg(file_path.as_os_str());
         log::info!(
             "[{context}] running command: {:?} [PWD={:?}]",
@@ -178,7 +182,7 @@ impl Backend {
 }
 
 fn dmypy_is_running() -> bool {
-    Command::new("dmypy")
+    dmypy_command()
         .arg("status")
         .output()
         .map_or(false, |output| {
@@ -190,7 +194,7 @@ fn dmypy_is_running() -> bool {
 #[tower_lsp::async_trait]
 impl tower_lsp::LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> TowerResult<InitializeResult> {
-        log::info!("[initialize] Initializing mypyls");
+        log::info!("[initialize] Initializing dmypyls");
         log::trace!(
             "[initialize] client text document capabilities: {}",
             serde_json::to_string(&params.capabilities.text_document).unwrap()
@@ -198,7 +202,7 @@ impl tower_lsp::LanguageServer for Backend {
         let root = "."; // Set root from params root_path or root_uri if available
         if !dmypy_is_running() {
             log::info!("[initialize] dmypy is not yet running, starting it...");
-            let ret = Command::new("dmypy")
+            let ret = dmypy_command()
                 .arg("run")
                 .arg("--")
                 // .arg("--cache-fine-grained")
@@ -213,23 +217,6 @@ impl tower_lsp::LanguageServer for Backend {
                 .arg(root)
                 .status();
             log::info!("[initialize] dympy run status: {:?}", ret);
-            /*
-            if ret.is_ok() {
-                let sub_command = "dmypy check $(git ls-files *.py)";
-                // Call dmypy check on all files in the workspace
-                let mut cmd = Command::new("sh");
-                cmd.arg("-c").arg(sub_command);
-                log::info!("[initialize] Running command: {:?}", cmd);
-                let output: std::process::Output = cmd
-                    .output()
-                    .context("[initialize] failed to run git ls-files")?;
-                log::info!(
-                    "[initialize] dmypy check output: {:?}",
-                    std::str::from_utf8(&output.stdout).unwrap()
-                );
-                log::info!("[initialize] dmypy check ret: {:?}", output.status);
-            }
-            */
         } else {
             log::info!("[initialize] dmypy is already running");
         }
@@ -253,7 +240,7 @@ impl tower_lsp::LanguageServer for Backend {
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
-                name: "mypyls".to_string(),
+                name: "dmypyls".to_string(),
                 version: None,
             }),
         })
@@ -283,8 +270,8 @@ impl tower_lsp::LanguageServer for Backend {
         ))
     }
     async fn shutdown(&self) -> TowerResult<()> {
-        log::info!("Shutting down mypyls (stopping dmypy)");
-        log::info!("{:?}", Command::new("dmypy").arg("stop").output().ok());
+        log::info!("Shutting down dmypyls (stopping dmypy)");
+        log::info!("{:?}", dmypy_command().arg("stop").output().ok());
         Ok(())
     }
 
@@ -303,7 +290,7 @@ impl tower_lsp::LanguageServer for Backend {
         };
 
         // Call `dmypy inspect`
-        let Some(output) = Command::new("dmypy")
+        let Some(output) = dmypy_command()
             .arg("inspect")
             .arg(file_path)
             .output()

@@ -118,6 +118,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dmypyls"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "shlex",
+ "simple-logging",
+ "tokio",
+ "tower-lsp",
+ "xdg",
+]
+
+[[package]]
 name = "form_urlencoded"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -444,21 +459,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys",
-]
-
-[[package]]
-name = "mypyls"
-version = "0.1.0"
-dependencies = [
- "log",
- "regex",
- "serde",
- "serde_json",
- "shlex",
- "simple-logging",
- "tokio",
- "tower-lsp",
- "xdg",
 ]
 
 [[package]]
