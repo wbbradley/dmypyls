@@ -19,8 +19,9 @@ impl<'de> Deserialize<'de> for PythonPath {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
+
         match s.as_str() {
-            "use-path" => Ok(PythonPath::System),
+            "system" => Ok(PythonPath::System),
             "pipenv" => Ok(PythonPath::Pipenv),
             "pdm" => Ok(PythonPath::Pdm),
             "poetry" => Ok(PythonPath::Poetry),
@@ -32,7 +33,6 @@ impl<'de> Deserialize<'de> for PythonPath {
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct DmypylsConfig {
     #[serde(default)]
-    #[serde(rename = "python")]
     pub python_path: PythonPath,
 }
 

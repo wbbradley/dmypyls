@@ -30,6 +30,7 @@ macro_rules! maybe {
 }
 
 fn dmypy_command(config: &DmypylsConfig) -> Command {
+    log::info!("dmypy_command: {:?}", config);
     match &config.python_path {
         PythonPath::System => Command::new("dmypy"),
         PythonPath::Python(python) => {
@@ -69,7 +70,8 @@ fn read_config_from_file(filename: &Path) -> Result<Option<DmypylsConfig>> {
             .ok_or_log("failed to parse configuration")
     })();
     log::info!(
-        "user-level configuration {}read.",
+        "configuration from {} {}read.",
+        filename.display(),
         if config.is_some() {
             "successfully "
         } else {
