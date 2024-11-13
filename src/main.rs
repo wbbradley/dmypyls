@@ -1,8 +1,10 @@
+use crate::config::{DmypylsConfig, PythonPath};
 use crate::error::{Context, Result};
 use crate::relpathbuf::RelPathBuf;
 use regex::{Captures, Regex};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -10,6 +12,7 @@ use tower_lsp::jsonrpc::Result as TowerResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{LspService, Server};
 
+mod config;
 mod error;
 mod relpathbuf;
 
@@ -26,8 +29,30 @@ macro_rules! maybe {
     };
 }
 
-fn dmypy_command() -> Command {
-    Command::new("dmypy")
+fn dmypy_command(config: &DmypylsConfig) -> Command {
+    match &config.python_path {
+        PythonPath::System => Command::new("dmypy"),
+        PythonPath::Python(python) => {
+            let mut cmd = Command::new(python);
+            cmd.arg("-m").arg("dmypy");
+            cmd
+        }
+        PythonPath::Pipenv => {
+            let mut cmd = Command::new("pipenv");
+            cmd.arg("run").arg("dmypy");
+            cmd
+        }
+        PythonPath::Pdm => {
+            let mut cmd = Command::new("pdm");
+            cmd.arg("run").arg("dmypy");
+            cmd
+        }
+        PythonPath::Poetry => {
+            let mut cmd = Command::new("poetry");
+            cmd.arg("run").arg("dmypy");
+            cmd
+        }
+    }
 }
 
 fn setup_logging(base_dirs: &xdg::BaseDirectories, level: log::LevelFilter) -> Result<()> {
@@ -36,11 +61,48 @@ fn setup_logging(base_dirs: &xdg::BaseDirectories, level: log::LevelFilter) -> R
     Ok(())
 }
 
+fn read_config_from_file(filename: &Path) -> Result<Option<DmypylsConfig>> {
+    log::info!("attempting to read configuration from {filename:?}");
+    let config = (|| {
+        crate::config::parse_config(read_to_string(filename).ok()?.as_str())
+            .context("failed to parse YAML configuration")
+            .ok_or_log("failed to parse configuration")
+    })();
+    log::info!(
+        "user-level configuration {}read.",
+        if config.is_some() {
+            "successfully "
+        } else {
+            "could not be "
+        }
+    );
+    Ok(config)
+}
+
+/// Read configuration from the user-level configuration file and the project-level configuration
+/// file. Prefers project-level. Does not merge configs.
+fn read_config(base_dirs: &xdg::BaseDirectories) -> Result<DmypylsConfig> {
+    let config_leaf_name = format!("{}.yaml", env!("CARGO_PKG_NAME"));
+    let current_dir = std::env::current_dir()?;
+    let project_config = read_config_from_file(&current_dir.join(&config_leaf_name))?;
+    if project_config.is_some() {
+        log::info!("[read_config] project-level configuration read.");
+        return Ok(project_config.unwrap());
+    }
+    let user_level_config_filename = base_dirs.get_config_file(&config_leaf_name);
+    let user_config = read_config_from_file(&user_level_config_filename)?;
+    if user_config.is_some() {
+        log::info!("[read_config] user-level configuration read.");
+    }
+    Ok(user_config.unwrap_or_default())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let base_dirs = xdg::BaseDirectories::with_prefix(env!("CARGO_PKG_NAME")).unwrap();
     setup_logging(&base_dirs, log::LevelFilter::Info).context("failed to set up logging")?;
 
+    let config = read_config(&base_dirs)?;
     log::info!(
         "Current working directory: {:?}",
         std::env::current_dir().unwrap()
@@ -51,6 +113,7 @@ async fn main() -> Result<()> {
 
     let (service, socket) = LspService::build(|client| Backend {
         client,
+        config,
         root_dir: std::env::current_dir().unwrap(),
         versions: Arc::new(Mutex::new(Default::default())),
     })
@@ -62,6 +125,7 @@ async fn main() -> Result<()> {
 
 struct Backend {
     client: tower_lsp::Client,
+    config: DmypylsConfig,
     root_dir: PathBuf,
     versions: Arc<Mutex<HashMap<Url, i32>>>,
 }
@@ -154,7 +218,7 @@ impl Backend {
             return Ok(());
         }
         log::info!("[{context}] checking file {file_path}:{version}");
-        let mut cmd = dmypy_command();
+        let mut cmd = dmypy_command(&self.config);
         cmd.arg("check").arg(file_path.as_os_str());
         log::info!(
             "[{context}] running command: {:?} [PWD={:?}]",
@@ -181,8 +245,8 @@ impl Backend {
     }
 }
 
-fn dmypy_is_running() -> bool {
-    dmypy_command()
+fn dmypy_is_running(config: &DmypylsConfig) -> bool {
+    dmypy_command(config)
         .arg("status")
         .output()
         .map_or(false, |output| {
@@ -200,9 +264,9 @@ impl tower_lsp::LanguageServer for Backend {
             serde_json::to_string(&params.capabilities.text_document).unwrap()
         );
         let root = "."; // Set root from params root_path or root_uri if available
-        if !dmypy_is_running() {
+        if !dmypy_is_running(&self.config) {
             log::info!("[initialize] dmypy is not yet running, starting it...");
-            let ret = dmypy_command()
+            let ret = dmypy_command(&self.config)
                 .arg("run")
                 .arg("--")
                 // .arg("--cache-fine-grained")
@@ -271,7 +335,10 @@ impl tower_lsp::LanguageServer for Backend {
     }
     async fn shutdown(&self) -> TowerResult<()> {
         log::info!("Shutting down dmypyls (stopping dmypy)");
-        log::info!("{:?}", dmypy_command().arg("stop").output().ok());
+        log::info!(
+            "{:?}",
+            dmypy_command(&self.config).arg("stop").output().ok()
+        );
         Ok(())
     }
 
@@ -290,7 +357,7 @@ impl tower_lsp::LanguageServer for Backend {
         };
 
         // Call `dmypy inspect`
-        let Some(output) = dmypy_command()
+        let Some(output) = dmypy_command(&self.config)
             .arg("inspect")
             .arg(file_path)
             .output()

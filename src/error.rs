@@ -71,7 +71,6 @@ impl From<Box<dyn std::error::Error>> for Error {
     }
 }
 
-/*
 impl From<regex::Error> for Error {
     #[track_caller]
     fn from(error: regex::Error) -> Self {
@@ -90,7 +89,6 @@ impl From<serde_yml::Error> for Error {
         }
     }
 }
-*/
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Self {
