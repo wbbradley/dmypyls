@@ -1,37 +1,25 @@
 use crate::error::Result;
-use serde::{Deserialize, Deserializer};
-
-#[derive(Clone, Debug)]
-pub enum PythonPath {
-    Python(String),
-    Uv,
-    Pipenv,
-    Pdm,
-    Poetry,
-}
-
-/// A custom deserializer for PythonPath that treats each string as a variant of the enum, but if
-/// it encounters an unknown string, then it populates the Python(...) variant.
-impl<'de> Deserialize<'de> for PythonPath {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<PythonPath, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-
-        match s.as_str() {
-            "pipenv" => Ok(PythonPath::Pipenv),
-            "pdm" => Ok(PythonPath::Pdm),
-            "poetry" => Ok(PythonPath::Poetry),
-            "uv" => Ok(PythonPath::Uv),
-            _ => Ok(PythonPath::Python(s)),
-        }
-    }
-}
+use serde::Deserialize;
+use std::process::Command;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct DmypylsConfig {
-    pub python_execution_path: PythonPath,
+    pub dmypy_command: Vec<String>,
+}
+
+impl DmypylsConfig {
+    pub fn command(&self) -> Result<Command> {
+        let mut terms = self.dmypy_command.iter();
+        let mut cmd = Command::new(
+            terms
+                .next()
+                .ok_or("No dmypy command found (see dmypyls.yaml in README.md)")?,
+        );
+        for term in terms {
+            cmd.arg(term);
+        }
+        Ok(cmd)
+    }
 }
 
 pub fn parse_config(content: &str) -> Result<DmypylsConfig> {
@@ -40,6 +28,6 @@ pub fn parse_config(content: &str) -> Result<DmypylsConfig> {
 
 #[test]
 fn test_parse_config() {
-    let content = r#"{ "python_execution_path": "python" }"#;
+    let content = r#"{ "dmypy_command": ["dmypy"] }"#;
     assert!(parse_config(content).is_ok());
 }

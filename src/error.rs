@@ -33,7 +33,6 @@ pub struct Error {
 }
 
 impl Error {
-    #[allow(dead_code)]
     #[track_caller]
     pub fn new(message: String) -> Self {
         Self {
@@ -41,9 +40,24 @@ impl Error {
             location: Location::caller(),
         }
     }
+    #[track_caller]
+    pub fn no_command() -> Self {
+        Self::new("No dmypy command found".to_string())
+    }
+}
+
+impl From<log::ParseLevelError> for Error {
+    #[track_caller]
+    fn from(error: log::ParseLevelError) -> Self {
+        Self {
+            message: format!("log level error: {error:?}"),
+            location: Location::caller(),
+        }
+    }
 }
 
 impl From<Error> for tower_lsp::jsonrpc::Error {
+    #[track_caller]
     fn from(error: Error) -> Self {
         tower_lsp::jsonrpc::Error {
             code: tower_lsp::jsonrpc::ErrorCode::InternalError,
@@ -82,6 +96,7 @@ impl From<regex::Error> for Error {
 }
 
 impl From<serde_yml::Error> for Error {
+    #[track_caller]
     fn from(error: serde_yml::Error) -> Self {
         Self {
             message: format!("yaml error: {error:?}"),
@@ -90,6 +105,7 @@ impl From<serde_yml::Error> for Error {
     }
 }
 impl From<serde_json::Error> for Error {
+    #[track_caller]
     fn from(error: serde_json::Error) -> Self {
         Self {
             message: format!("json error: {error:?}"),
