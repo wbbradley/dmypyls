@@ -17,6 +17,44 @@ install dmypyls`. For now, you'll need to ensure that `mypy` is in your path whi
 Consider using `dmypyls-debug-runner` to run from source, which is helpful for
 development purposes.
 
+## Project Configuration
+
+In order to allow dmypyls to find the correct `mypy` configuration, you should place a `dmypyls.yaml` file
+in the root of your project. Here is some example configurations:
+
+If you manage your virtual environment manually with `venv` or `uv`:
+
+```yaml
+# dmypyls.yaml
+python_execution_path: .venv/bin/python
+```
+
+If you manage your virtual environment with `poetry`:
+
+```yaml
+# dmypyls.yaml
+python_execution_path: poetry
+```
+
+Or pipenv:
+
+```yaml
+# dmypyls.yaml
+python_execution_path: pipenv
+```
+
+Or pdm:
+
+```yaml
+# dmypyls.yaml
+python_execution_path: pdm
+```
+
+## User-level Configuration
+
+You can place a `dmypyls.yaml` in your `"$HOME"/.config/dmypyls` directory to configure a fallback
+behavior for all projects.
+
 ## Neovim Config
 
 ```lua

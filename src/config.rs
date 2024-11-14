@@ -1,11 +1,10 @@
 use crate::error::Result;
 use serde::{Deserialize, Deserializer};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub enum PythonPath {
-    #[default]
-    System,
     Python(String),
+    Uv,
     Pipenv,
     Pdm,
     Poetry,
@@ -21,19 +20,18 @@ impl<'de> Deserialize<'de> for PythonPath {
         let s = String::deserialize(deserializer)?;
 
         match s.as_str() {
-            "system" => Ok(PythonPath::System),
             "pipenv" => Ok(PythonPath::Pipenv),
             "pdm" => Ok(PythonPath::Pdm),
             "poetry" => Ok(PythonPath::Poetry),
+            "uv" => Ok(PythonPath::Uv),
             _ => Ok(PythonPath::Python(s)),
         }
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct DmypylsConfig {
-    #[serde(default)]
-    pub python_path: PythonPath,
+    pub python_execution_path: PythonPath,
 }
 
 pub fn parse_config(content: &str) -> Result<DmypylsConfig> {
@@ -42,6 +40,6 @@ pub fn parse_config(content: &str) -> Result<DmypylsConfig> {
 
 #[test]
 fn test_parse_config() {
-    let content = r#"{ "python_path": "python" }"#;
+    let content = r#"{ "python_execution_path": "python" }"#;
     assert!(parse_config(content).is_ok());
 }

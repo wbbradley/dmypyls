@@ -29,13 +29,21 @@ macro_rules! maybe {
     };
 }
 
-fn dmypy_command(config: &DmypylsConfig) -> Command {
+fn dmypy_command(config: &DmypylsConfig) -> Result<Command> {
     log::info!("dmypy_command: {:?}", config);
-    match &config.python_path {
-        PythonPath::System => Command::new("dmypy"),
+    Ok(match &config.python_execution_path {
         PythonPath::Python(python) => {
-            let mut cmd = Command::new(python);
-            cmd.arg("-m").arg("dmypy");
+            // Get the dirname of `python` and then join that with `dmypy`
+            let dmypy = Path::new(python)
+                .parent()
+                .ok_or("Failed to get parent of python path")?
+                .canonicalize()?
+                .join("dmypy");
+            Command::new(dmypy)
+        }
+        PythonPath::Uv => {
+            let mut cmd = Command::new("uv");
+            cmd.arg("--quiet").arg("run").arg("dmypy");
             cmd
         }
         PythonPath::Pipenv => {
@@ -45,7 +53,7 @@ fn dmypy_command(config: &DmypylsConfig) -> Command {
         }
         PythonPath::Pdm => {
             let mut cmd = Command::new("pdm");
-            cmd.arg("run").arg("dmypy");
+            cmd.arg("--quiet").arg("run").arg("dmypy");
             cmd
         }
         PythonPath::Poetry => {
@@ -53,7 +61,7 @@ fn dmypy_command(config: &DmypylsConfig) -> Command {
             cmd.arg("run").arg("dmypy");
             cmd
         }
-    }
+    })
 }
 
 fn setup_logging(base_dirs: &xdg::BaseDirectories, level: log::LevelFilter) -> Result<()> {
@@ -96,7 +104,7 @@ fn read_config(base_dirs: &xdg::BaseDirectories) -> Result<DmypylsConfig> {
     if user_config.is_some() {
         log::info!("[read_config] user-level configuration read.");
     }
-    Ok(user_config.unwrap_or_default())
+    user_config.ok_or("No configuration found".into())
 }
 
 #[tokio::main]
@@ -104,7 +112,10 @@ async fn main() -> Result<()> {
     let base_dirs = xdg::BaseDirectories::with_prefix(env!("CARGO_PKG_NAME")).unwrap();
     setup_logging(&base_dirs, log::LevelFilter::Info).context("failed to set up logging")?;
 
-    let config = read_config(&base_dirs)?;
+    let Some(config) = read_config(&base_dirs).ok_or_log("dmypyls") else {
+        std::process::exit(1);
+    };
+
     log::info!(
         "Current working directory: {:?}",
         std::env::current_dir().unwrap()
@@ -220,7 +231,7 @@ impl Backend {
             return Ok(());
         }
         log::info!("[{context}] checking file {file_path}:{version}");
-        let mut cmd = dmypy_command(&self.config);
+        let mut cmd = dmypy_command(&self.config)?;
         cmd.arg("check").arg(file_path.as_os_str());
         log::info!(
             "[{context}] running command: {:?} [PWD={:?}]",
@@ -247,14 +258,14 @@ impl Backend {
     }
 }
 
-fn dmypy_is_running(config: &DmypylsConfig) -> bool {
-    dmypy_command(config)
+fn dmypy_is_running(config: &DmypylsConfig) -> Result<bool> {
+    Ok(dmypy_command(config)?
         .arg("status")
         .output()
         .map_or(false, |output| {
             let text = std::str::from_utf8(&output.stdout).unwrap();
             text.starts_with("Daemon is up and running")
-        })
+        }))
 }
 
 #[tower_lsp::async_trait]
@@ -266,9 +277,9 @@ impl tower_lsp::LanguageServer for Backend {
             serde_json::to_string(&params.capabilities.text_document).unwrap()
         );
         let root = "."; // Set root from params root_path or root_uri if available
-        if !dmypy_is_running(&self.config) {
+        if !dmypy_is_running(&self.config)? {
             log::info!("[initialize] dmypy is not yet running, starting it...");
-            let ret = dmypy_command(&self.config)
+            let ret = dmypy_command(&self.config)?
                 .arg("run")
                 .arg("--")
                 // .arg("--cache-fine-grained")
@@ -339,7 +350,7 @@ impl tower_lsp::LanguageServer for Backend {
         log::info!("Shutting down dmypyls (stopping dmypy)");
         log::info!(
             "{:?}",
-            dmypy_command(&self.config).arg("stop").output().ok()
+            dmypy_command(&self.config)?.arg("stop").output().ok()
         );
         Ok(())
     }
@@ -359,7 +370,7 @@ impl tower_lsp::LanguageServer for Backend {
         };
 
         // Call `dmypy inspect`
-        let Some(output) = dmypy_command(&self.config)
+        let Some(output) = dmypy_command(&self.config)?
             .arg("inspect")
             .arg(file_path)
             .output()
