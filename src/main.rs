@@ -15,6 +15,8 @@ mod config;
 mod error;
 mod relpathbuf;
 
+const DEFAULT_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
+
 #[macro_export]
 macro_rules! maybe {
     ($block:block) => {
@@ -74,10 +76,10 @@ fn read_config(base_dirs: &xdg::BaseDirectories) -> Result<DmypylsConfig> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let base_dirs = xdg::BaseDirectories::with_prefix(env!("CARGO_PKG_NAME")).unwrap();
-    let log_level = std::env::var("RUST_LOG_LEVEL")
-        .unwrap()
-        .parse::<log::LevelFilter>()
-        .unwrap_or(log::LevelFilter::Info);
+    let log_level: log::LevelFilter = std::env::var("RUST_LOG_LEVEL")
+        .map_or(DEFAULT_LOG_LEVEL, |level| {
+            level.parse().unwrap_or(DEFAULT_LOG_LEVEL)
+        });
     setup_logging(&base_dirs, log_level).context("failed to set up logging")?;
 
     let config = read_config(&base_dirs).expect("Failed to read configuration");
