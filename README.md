@@ -1,16 +1,16 @@
 # dmypyls
 
-`dmypyls` is a language server for the mypy type checker's `dmypy` daemon. `dmypyls` manages the
-lifecycle of the `dmypy` daemon and provides a language server interface to it.
+`dmypyls` is a language server for mypy that leverages the `dmypy` daemon. `dmypyls` manages the
+life-cycle of the `dmypy` daemon and provides a language server interface to it.
 
-I should mention that there is plenty of prior art in this space. See
-[sileht/dmypy-ls](https://github.com/sileht/dmypy-ls) for one example. Also, the mypy folks seem to
-want to convert `dmypy` to a language server. See [this issue](https://github.com/python/mypy/issues/10463).
+I'm following [this issue](https://github.com/python/mypy/issues/10463) for more info on a straight mypy
+language server implementation.
 
 ## Installing dmypyls
 
-Assuming you have a recent version of the rust toolchain installed, you should be able to `cargo
-install dmypyls`. For now, you'll need to ensure that `mypy` is in your path while running `dmypyls`.
+1. Get [Rust](https://www.rust-lang.org/tools/install).
+2. `cargo install dmypyls`.
+3. Add `dmypyls` to your editor's language server configuration. (See below for Neovim example.)
 
 ### Running from Source
 
@@ -19,35 +19,48 @@ development purposes.
 
 ## Project Configuration
 
-In order to allow dmypyls to find the correct `mypy` configuration, you should place a `dmypyls.yaml` file
-in the root of your project. Here is some example configurations:
+In order to allow `dmypyls` to find the correct `mypy` configuration, you should place a `dmypyls.yaml` file
+in the root of your project as a sibling to `mypy.ini` or `pyproject.toml`. Here are some example configurations:
 
-If you manage your virtual environment manually with `venv` or `uv`:
+If you manage your python environment with `venv` or `uv`, you'll probably want your configuration
+to look like this:
 
 ```yaml
 # dmypyls.yaml
-python_execution_path: .venv/bin/python
+dmypy_command:
+  - .venv/bin/dmypy
 ```
 
-If you manage your virtual environment with `poetry`:
+If you manage your virtual environment with `pipenv`:
 
 ```yaml
 # dmypyls.yaml
-python_execution_path: poetry
+dmypy_command:
+  - pipenv
+  - run
+  - dmypy
 ```
 
-Or pipenv:
+Or uv:
 
 ```yaml
 # dmypyls.yaml
-python_execution_path: pipenv
+dmypy_command:
+  - uv
+  - --quiet
+  - run
+  - dmypy
 ```
 
 Or pdm:
 
 ```yaml
 # dmypyls.yaml
-python_execution_path: pdm
+dmypy_command:
+  - pdm
+  - --quiet
+  - run
+  - dmypy
 ```
 
 ## User-level Configuration
