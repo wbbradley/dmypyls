@@ -2,7 +2,7 @@
 
 /ˈdɪmpəlz/
 
-<img src="https://github.com/user-attachments/assets/1396d49b-8b16-425a-8118-5bcdc216df39" style="width: 200px">
+<img src="https://github.com/user-attachments/assets/08dbd014-6ca6-47c9-b470-c45bf9d3522b" style="width: 200px">
 
 `dmypyls` is a language server for mypy that leverages the `dmypy` daemon. `dmypyls` manages the
 life-cycle of the `dmypy` daemon and provides a language server interface to it.

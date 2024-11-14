@@ -323,7 +323,7 @@ impl tower_lsp::LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> TowerResult<Option<Hover>> {
-        log::info!("Hover called");
+        log::info!("Hover called {params:?}");
         let uri = params.text_document_position_params.text_document.uri;
         let file_path = match PathBuf::from(uri.path()).canonicalize() {
             Err(io_error) => {
